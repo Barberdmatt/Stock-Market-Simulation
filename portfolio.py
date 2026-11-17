@@ -1,8 +1,7 @@
-
 import json
+import time
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from .market_data import STOCKS, get_market_data
 
 
 # Starting virtual cash
@@ -14,21 +13,23 @@ PORTFOLIO_FILE = Path(__file__).resolve().parent / "portfolio.json"
 
 class Portfolio:
 
-    def __init__(self):
+    def __init__(self, path=PORTFOLIO_FILE):
 
+        self.path = Path(path)
         self.cash = STARTING_CASH
         self.positions = {}
         self.realized_profit = 0.0
         self.history = []
+        self.trades = []
         self.load()
 
     def load(self):
 
-        if not PORTFOLIO_FILE.exists():
+        if not self.path.exists():
             return
 
         try:
-            with open(PORTFOLIO_FILE, "r") as file:
+            with open(self.path, "r") as file:
                 data = json.load(file)
 
             self.cash = float(data.get("cash", STARTING_CASH))
@@ -37,6 +38,7 @@ class Portfolio:
                 data.get("realized_profit", 0.0)
             )
             self.history = data.get("history", [])
+            self.trades = data.get("trades", [])
 
         except (OSError, ValueError, TypeError):
             print("Could not load portfolio. Starting a new one.")
@@ -47,10 +49,11 @@ class Portfolio:
             "cash": self.cash,
             "positions": self.positions,
             "realized_profit": self.realized_profit,
-            "history": self.history
+            "history": self.history,
+            "trades": self.trades
         }
 
-        with open(PORTFOLIO_FILE, "w") as file:
+        with open(self.path, "w") as file:
             json.dump(data, file, indent=4)
 
 
@@ -91,67 +94,46 @@ class Portfolio:
         return snapshot
 
 
-    def buy(self, symbol, quantity, price):
-
-        cost = quantity * price
-
-        if cost > self.cash:
-            print("Not enough cash for this purchase.")
-            return
-
-        old_position = self.positions.get(
-            symbol,
-            {"quantity": 0, "avg_cost": 0.0}
-        )
-
-        old_quantity = old_position["quantity"]
-        old_cost = old_position["avg_cost"] * old_quantity
-
-        new_quantity = old_quantity + quantity
-        new_average_cost = (old_cost + cost) / new_quantity
-
-        self.positions[symbol] = {
-            "quantity": new_quantity,
-            "avg_cost": new_average_cost
-        }
-
-        self.cash -= cost
+    def apply_fill(self, symbol, is_buy, quantity, price, kind="Market"):
+        """Record a trade the exchange has already executed (the server checks funds first)."""
+        profit = None
+        if is_buy:
+            old = self.positions.get(symbol, {"quantity": 0, "avg_cost": 0.0})
+            new_q = old["quantity"] + quantity
+            self.positions[symbol] = {
+                "quantity": new_q,
+                "avg_cost": (old["avg_cost"] * old["quantity"] + price * quantity) / new_q,
+            }
+            self.cash -= price * quantity
+        else:
+            pos = self.positions[symbol]
+            profit = quantity * (price - pos["avg_cost"])
+            pos["quantity"] -= quantity
+            self.cash += price * quantity
+            self.realized_profit += profit
+            if pos["quantity"] == 0:
+                del self.positions[symbol]
+        self.trades.insert(0, {"t": int(time.time() * 1000), "s": symbol,
+                               "sd": "b" if is_buy else "s", "q": quantity,
+                               "px": price, "type": kind, "pl": profit})
+        del self.trades[500:]
         self.save()
 
-        print(
-            f"Bought {quantity} shares of {symbol} "
-            f"at ${price:.2f} each."
-        )
+    def buy(self, symbol, quantity, price):
+        if quantity * price > self.cash:
+            return False, "Not enough cash for this purchase."
+        self.apply_fill(symbol, True, quantity, price)
+        return True, f"Bought {quantity} shares of {symbol} at ${price:.2f} each."
 
     def sell(self, symbol, quantity, price):
-
         position = self.positions.get(symbol)
-
         if position is None or quantity > position["quantity"]:
-            print("You do not own enough shares to sell.")
-            return
-
-        average_cost = position["avg_cost"]
-
-        proceeds = quantity * price
-        profit = quantity * (price - average_cost)
-
-        position["quantity"] -= quantity
-
-        self.cash += proceeds
-        self.realized_profit += profit
-
-        if position["quantity"] == 0:
-            del self.positions[symbol]
-
-        self.save()
-
-        print(
-            f"Sold {quantity} shares of {symbol} "
-            f"at ${price:.2f} each."
-        )
-        print(f"Realized profit/loss: ${profit:,.2f}")
-
+            return False, "You do not own enough shares to sell."
+        profit = quantity * (price - position["avg_cost"])
+        self.apply_fill(symbol, False, quantity, price)
+        return True, (f"Sold {quantity} shares of {symbol} at ${price:.2f} each.\n"
+                      f"Realized profit/loss: ${profit:,.2f}")
+    
     def show_portfolio(self, market_data):
 
         market_value = 0.0
@@ -420,7 +402,7 @@ class Portfolio:
 
 
 def run_portfolio():
-
+    from .market_data import STOCKS, get_market_data
     portfolio = Portfolio()
 
     while True:
@@ -503,10 +485,7 @@ def run_portfolio():
                 print("Please enter a whole number of shares.")
                 continue
 
-            if choice == "1":
-                portfolio.buy(symbol, quantity, price)
-
-            else:
-                portfolio.sell(symbol, quantity, price)
+            ok, message = (portfolio.buy if choice == "1" else portfolio.sell)(symbol, quantity, price)
+            print(message)
 
     print("\nReturning to the main menu...")

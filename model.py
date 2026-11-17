@@ -85,8 +85,9 @@ def place_pmf(alpha, d0, g, dmax):
     return w / w.sum()
 
 
-def simulate(p: Params, n_events: int, seed: int = 0, record_messages: bool = False,
-             snapshot_every: int = 200, depth_levels: int = 30) -> Result:
+def _run(p: Params, n_events: int, seed: int = 0, record_messages: bool = False,
+         snapshot_every: int = 200, depth_levels: int = 30,
+         book: Book | None = None, on_fill=None):
     rng = random.Random(seed)
     K = len(p.betas)
     betas = p.betas
@@ -100,7 +101,7 @@ def simulate(p: Params, n_events: int, seed: int = 0, record_messages: bool = Fa
     w = place_pmf(p.place_alpha, p.place_d0, p.place_g, p.place_dmax)
     cdf = list(np.cumsum(w))
 
-    book = Book()
+    book = book if book is not None else Book()
     oid = 0
     msgs = [] if record_messages else None
     ev_t, ev_b, ev_a = array("d"), array("d"), array("d")
@@ -160,6 +161,9 @@ def simulate(p: Params, n_events: int, seed: int = 0, record_messages: bool = Fa
             m0 = (bb + ba) / 2 if (bb is not None and ba is not None) else NAN
             fills = book.market(side, size)
             if fills:
+                if on_fill is not None:
+                    for pr, q, o in fills:
+                        on_fill(o, pr, q)
                 if msgs is not None:
                     for pr, q, o in fills:
                         msgs.append((t, "exec", -side, pr, q, o))
@@ -190,16 +194,18 @@ def simulate(p: Params, n_events: int, seed: int = 0, record_messages: bool = Fa
             N = len(book.live)
             if N:
                 o = book.live[int(rng.random() * N)]
-                sd, pr, sz = book.orders[o]
-                if msgs is not None:
-                    msgs.append((t, "cancel", sd, pr, sz, o))
-                book.cancel(o)
+                if o > 0:                                  # player orders have negative ids
+                    sd, pr, sz = book.orders[o]
+                    if msgs is not None:
+                        msgs.append((t, "cancel", sd, pr, sz, o))
+                    book.cancel(o)
 
         bb, ba = book.quotes()
         if bb is not None: last_bb = bb
         if ba is not None: last_ba = ba
         ev_t.append(t); ev_b.append(NAN if bb is None else bb); ev_a.append(NAN if ba is None else ba)
         n += 1
+        yield t, bb, ba
 
         if snapshot_every and n % snapshot_every == 0 and bb is not None and ba is not None:
             for sd, pr, sz in book.orders.values():
@@ -216,3 +222,12 @@ def simulate(p: Params, n_events: int, seed: int = 0, record_messages: bool = Fa
                   np.frombuffer(mo_s, float).copy(), np.frombuffer(mo_q, float).copy(),
                   np.frombuffer(mo_m0, float).copy(), np.frombuffer(mo_m1, float).copy(),
                   depth / max(n_snap, 1), df)
+
+def simulate(*args, **kwargs):
+    """Original behaviour: run to completion and return the Result."""
+    gen = _run(*args, **kwargs)
+    while True:
+        try:
+            next(gen)
+        except StopIteration as stop:
+            return stop.value

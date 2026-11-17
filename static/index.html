@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Paper Trading Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #fff;
+      --ink: #16202a;
+      --mute: #64727f;
+      --line: #dde3e9;
+      --up: #0a9d5c;
+      --dn: #d6334b;
+      --acc: #2563eb;
+      --sel: #e8f0fe;
+      box-sizing: border-box;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px)
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0d1319;
+        --panel: #151d26;
+        --ink: #e6edf3;
+        --mute: #8696a5;
+        --line: #243040;
+        --up: #2ecc8a;
+        --dn: #ff5d73;
+        --acc: #5b9dff;
+        --sel: #1b2a40
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #0d1319;
+      --panel: #151d26;
+      --ink: #e6edf3;
+      --mute: #8696a5;
+      --line: #243040;
+      --up: #2ecc8a;
+      --dn: #ff5d73;
+      --acc: #5b9dff;
+      --sel: #1b2a40
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif
+    }
+
+    .num {
+      font-variant-numeric: tabular-nums
+    }
+
+    .up {
+      color: var(--up)
+    }
+
+    .dn {
+      color: var(--dn)
+    }
+
+    .mute {
+      color: var(--mute)
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 28px;
+      align-items: center;
+      padding: 14px 18px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line)
+    }
+
+    header h1 {
+      font-size: 16px;
+      margin: 0 auto 0 0
+    }
+
+    .kv span {
+      display: block;
+      font-size: 12px;
+      color: var(--mute)
+    }
+
+    .kv b {
+      font-size: 18px
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 300px 1fr 300px;
+      gap: 12px;
+      padding: 12px;
+      max-width: 1500px;
+      margin: 0 auto
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden
+    }
+
+    .panel h2 {
+      font-size: 13px;
+      margin: 0;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 600
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    th,
+    td {
+      padding: 7px 12px;
+      text-align: right;
+      white-space: nowrap
+    }
+
+    th:first-child,
+    td:first-child {
+      text-align: left
+    }
+
+    th {
+      font-weight: 500;
+      color: var(--mute);
+      font-size: 12px;
+      border-bottom: 1px solid var(--line)
+    }
+
+    tbody tr+tr td {
+      border-top: 1px solid var(--line)
+    }
+
+    #wl tr {
+      cursor: pointer
+    }
+
+    #wl tr.on {
+      background: var(--sel)
+    }
+
+    #wl tr:hover {
+      background: var(--sel)
+    }
+
+    .hd {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 14px 16px 4px
+    }
+
+    .hd .sym {
+      font-size: 22px;
+      font-weight: 700
+    }
+
+    .hd .px {
+      font-size: 26px;
+      font-weight: 700;
+      text-align: right
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 260px
+    }
+
+    .quote {
+      display: flex;
+      gap: 24px;
+      padding: 8px 16px 14px;
+      color: var(--mute);
+      font-size: 13px
+    }
+
+    .quote b {
+      color: var(--ink)
+    }
+
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0
+    }
+
+    .book td {
+      padding: 4px 12px;
+      font-size: 13px
+    }
+
+    .seg {
+      display: flex;
+      margin: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    .seg button {
+      flex: 1;
+      padding: 9px;
+      background: none;
+      border: 0;
+      color: var(--mute);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer
+    }
+
+    .seg button.on.b {
+      background: var(--up);
+      color: #fff
+    }
+
+    .seg button.on.s {
+      background: var(--dn);
+      color: #fff
+    }
+
+    .f {
+      margin: 0 12px 10px
+    }
+
+    .f label {
+      display: block;
+      font-size: 12px;
+      color: var(--mute);
+      margin-bottom: 3px
+    }
+
+    .f input,
+    .f select {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--ink);
+      font: inherit
+    }
+
+    .go {
+      display: block;
+      width: calc(100% - 24px);
+      margin: 4px 12px 12px;
+      padding: 11px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--acc);
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer
+    }
+
+    .go.b {
+      background: var(--up)
+    }
+
+    .go.s {
+      background: var(--dn)
+    }
+
+    .est {
+      margin: 0 12px 10px;
+      font-size: 13px;
+      color: var(--mute)
+    }
+
+    #msg {
+      margin: 0 12px 12px;
+      min-height: 20px;
+      font-size: 13px
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .tabs button {
+      background: none;
+      border: 0;
+      padding: 6px 12px;
+      border-radius: 6px;
+      color: var(--mute);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer
+    }
+
+    .tabs button.on {
+      background: var(--sel);
+      color: var(--acc)
+    }
+
+    .low {
+      grid-column: 1/-1
+    }
+
+    .scroll {
+      overflow-x: auto;
+      max-height: 340px;
+      overflow-y: auto
+    }
+
+    .x {
+      background: none;
+      border: 1px solid var(--line);
+      color: var(--mute);
+      border-radius: 6px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font: inherit
+    }
+
+    .tg {
+      background: none;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font: inherit
+    }
+
+    .empty {
+      padding: 28px;
+      text-align: center;
+      color: var(--mute)
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    tr:focus-visible {
+      outline: 2px solid var(--acc);
+      outline-offset: 1px
+    }
+
+    footer {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 4px 14px 24px;
+      color: var(--mute);
+      font-size: 12px
+    }
+
+    @media (max-width:1050px) {
+      main {
+        grid-template-columns: 1fr
+      }
+
+      .low {
+        grid-column: auto
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Paper Trading · simulated market</h1>
+    <div class="kv"><span>Account value</span><b class="num" id="eq"></b></div>
+    <div class="kv"><span>Cash</span><b class="num" id="cash"></b></div>
+    <div class="kv"><span>Buying power</span><b class="num" id="bp"></b></div>
+    <div class="kv"><span>Total P&amp;L</span><b class="num" id="pl"></b></div>
+    <button class="tg" id="reset">Reset account</button>
+  </header>
+  <main>
+    <section class="panel">
+      <h2>Watchlist</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Last</th>
+            <th>Change</th>
+          </tr>
+        </thead>
+        <tbody id="wl"></tbody>
+      </table>
+    </section>
+    <section class="panel">
+      <div class="hd">
+        <div class="sym" id="hs"></div>
+        <div class="px num" id="hp"></div>
+      </div>
+      <div class="quote num" id="qt"></div>
+      <canvas id="ch" aria-label="Price chart"></canvas>
+      <div class="cols book">
+        <table>
+          <thead>
+            <tr>
+              <th>Bid size</th>
+              <th>Bid</th>
+            </tr>
+          </thead>
+          <tbody id="bb"></tbody>
+        </table>
+        <table>
+          <thead>
+            <tr>
+              <th>Ask</th>
+              <th>Ask size</th>
+            </tr>
+          </thead>
+          <tbody id="ba"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Order ticket</h2>
+      <div class="seg"><button class="b on" id="sb">Buy</button><button class="s" id="ss">Sell</button></div>
+      <div class="f"><label for="ty">Order type</label><select id="ty">
+          <option value="market">Market</option>
+          <option value="limit">Limit</option>
+        </select></div>
+      <div class="f"><label for="qy">Shares</label><input id="qy" type="number" min="1" step="1" value="10"></div>
+      <div class="f" id="lw" hidden><label for="lp">Limit price</label><input id="lp" type="number" step="0.01"></div>
+      <div class="est num" id="est"></div>
+      <button class="go b" id="go">Buy</button>
+      <div id="msg" role="status"></div>
+    </section>
+    <section class="panel low">
+      <div class="tabs" id="tabs"><button data-t="pos" class="on">Positions</button><button data-t="ord">Open
+          orders</button><button data-t="his">History</button><button data-t="perf">Performance</button></div>
+      <div id="tab" class="scroll"></div>
+    </section>
+  </main>
+  <footer>Fake money and simulated prices. Nothing here is real or financial advice. Prices follow a random model with
+    volatility clustering and a shared market factor; fills walk a synthetic order book.</footer>
+  <script>
+    const START = 100000;
+    const $ = s => document.querySelector(s);
+    const usd = n => (n < 0 ? "-" : "") + "$" + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pc = n => (n >= 0 ? "+" : "") + n.toFixed(2) + "%", cl = n => n >= 0 ? "up" : "dn";
+    let P = { cash: 0, bp: 0, equity: 0, pos: {}, orders: [], hist: [], eq: [] }, M = {}, sel = "AAPL", side = "b", tab = "pos";
+    const owned = s => P.pos[s] ? P.pos[s].q : 0;
+    async function api(path, body) {
+      const r = await fetch(path, body === undefined ? undefined : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail || "Request failed");
+      return j
+    }
+    async function refresh() {
+      try { const [m, a] = await Promise.all([api("/api/market"), api("/api/account")]); M = m; P = a; render() }
+      catch (e) { console.error(e) }
+    }
+    function say(t, bad) { const e = $("#msg"); e.textContent = t; e.className = bad ? "dn" : "up" }
+    async function submit() {
+      const q = Math.floor(+$("#qy").value), ty = $("#ty").value;
+      if (!(q > 0)) return say("Enter a whole number of shares.", 1);
+      try {
+        const r = await api("/api/order", { sym: sel, side, qty: q, type: ty, limit: +$("#lp").value || null });
+        say(r.filled ? `Filled ${r.filled} ${sel} at an average of ${usd(r.avg)}.` + (r.resting ? ` ${r.resting} still resting.` : "") : "Limit order placed. It fills when the price reaches your limit.");
+        refresh()
+      } catch (e) { say(e.message, 1) }
+    }
+    function fmtT(t) { return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }
+    function render() {
+      if (!M[sel]) return;
+      const e = P.equity; $("#eq").textContent = usd(e); $("#cash").textContent = usd(P.cash); $("#bp").textContent = usd(P.bp);
+      const pl = e - START; $("#pl").textContent = usd(pl) + " (" + pc(pl / START * 100) + ")"; $("#pl").className = "num " + cl(pl);
+      $("#wl").innerHTML = Object.keys(M).map(s => { const m = M[s], c = (m.mid / m.open - 1) * 100; return `<tr data-s="${s}" tabindex="0" class="${s === sel ? "on" : ""}"><td><b>${s}</b></td><td class="num">${usd(m.mid)}</td><td class="num ${cl(c)}">${pc(c)}</td></tr>` }).join("");
+      const m = M[sel], c = (m.mid / m.open - 1) * 100;
+      $("#hs").textContent = sel; $("#hp").innerHTML = `${usd(m.mid)} <small class="${cl(c)}">${pc(c)}</small>`;
+      $("#qt").innerHTML = `<span>Bid <b>${usd(m.bid)}</b></span><span>Ask <b>${usd(m.ask)}</b></span><span>Spread <b>${usd(m.sp)}</b></span><span>Owned <b>${owned(sel)}</b></span>`;
+      $("#bb").innerHTML = m.bk[0].map(([p, z]) => `<tr><td class="num mute">${z}</td><td class="num up">${p.toFixed(2)}</td></tr>`).join("");
+      $("#ba").innerHTML = m.bk[1].map(([p, z]) => `<tr><td class="num dn">${p.toFixed(2)}</td><td class="num mute">${z}</td></tr>`).join("");
+      chart(m.h); ticket(); renderTab()
+    }
+    function ticket() {
+      const q = Math.floor(+$("#qy").value) || 0, m = M[sel], ty = $("#ty").value;
+      const px = ty === "limit" ? (+$("#lp").value || 0) : (q > 0 ? (side === "b" ? m.ask : m.bid) : 0);
+      $("#est").textContent = q > 0 && px > 0 ? `Estimated ${side === "b" ? "cost" : "proceeds"}: ${usd(px * q)}` : "";
+      $("#go").textContent = (side === "b" ? "Buy " : "Sell ") + sel; $("#go").className = "go " + side
+    }
+    function chart(h) {
+      const cv = $("#ch"), d = devicePixelRatio || 1, w = cv.clientWidth, ht = cv.clientHeight;
+      if (cv.width !== w * d) { cv.width = w * d; cv.height = ht * d } const x = cv.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); x.clearRect(0, 0, w, ht);
+      const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+      const lo = Math.min(...h), hi = Math.max(...h), pad = (hi - lo) * .1 || .5, a = lo - pad, b = hi + pad, up = h[h.length - 1] >= h[0];
+      x.strokeStyle = css("--line"); x.lineWidth = 1; x.fillStyle = css("--mute"); x.font = "11px system-ui";
+      for (let i = 0; i <= 3; i++) { const y = 8 + i / 3 * (ht - 24), v = b - (b - a) * i / 3; x.beginPath(); x.moveTo(0, y); x.lineTo(w - 56, y); x.stroke(); x.fillText(v.toFixed(2), w - 52, y + 4) }
+      x.strokeStyle = css(up ? "--up" : "--dn"); x.lineWidth = 2; x.beginPath();
+      h.forEach((p, i) => { const X = i / Math.max(h.length - 1, 1) * (w - 62) + 2, Y = 8 + (b - p) / (b - a) * (ht - 24); i ? x.lineTo(X, Y) : x.moveTo(X, Y) }); x.stroke()
+    }
+    function renderTab() {
+      const t = $("#tab"); let h = "";
+      if (tab === "pos") {
+        const r = Object.entries(P.pos);
+        h = r.length ? `<table><thead><tr><th>Symbol</th><th>Shares</th><th>Avg cost</th><th>Last</th><th>Market value</th><th>P&amp;L</th><th>Return</th></tr></thead><tbody>${r.map(([s, p]) => { const m = M[s], v = p.q * m.mid, g = p.q * (m.mid - p.avg); return `<tr><td><b>${s}</b></td><td class="num">${p.q}</td><td class="num">${usd(p.avg)}</td><td class="num">${usd(m.mid)}</td><td class="num">${usd(v)}</td><td class="num ${cl(g)}">${usd(g)}</td><td class="num ${cl(g)}">${pc((m.mid / p.avg - 1) * 100)}</td></tr>` }).join("")}</tbody></table>` : `<div class="empty">No positions yet. Pick a stock and place your first order.</div>`
+      }
+      else if (tab === "ord") { h = P.orders.length ? `<table><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Shares</th><th>Limit</th><th>Last</th><th></th></tr></thead><tbody>${P.orders.map(o => `<tr><td class="num">${fmtT(o.t)}</td><td><b>${o.sym}</b></td><td class="${o.side === "b" ? "up" : "dn"}">${o.side === "b" ? "Buy" : "Sell"}</td><td class="num">${o.q}</td><td class="num">${usd(o.lim)}</td><td class="num">${usd(M[o.sym].mid)}</td><td><button class="x" data-c="${o.id}">Cancel</button></td></tr>`).join("")}</tbody></table>` : `<div class="empty">No open orders. Limit orders wait here until the price is right.</div>` }
+      else if (tab === "his") { h = P.hist.length ? `<table><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Type</th><th>Shares</th><th>Price</th><th>Realized P&amp;L</th></tr></thead><tbody>${P.hist.map(o => `<tr><td class="num">${fmtT(o.t)}</td><td><b>${o.s}</b></td><td class="${o.sd === "b" ? "up" : "dn"}">${o.sd === "b" ? "Buy" : "Sell"}</td><td>${o.type}</td><td class="num">${o.q}</td><td class="num">${usd(o.px)}</td><td class="num ${o.pl == null ? "mute" : cl(o.pl)}">${o.pl == null ? "–" : usd(o.pl)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Your filled trades will show up here.</div>` }
+      else {
+        const re = P.hist.reduce((a, o) => a + (o.pl || 0), 0), un = Object.entries(P.pos).reduce((a, [s, p]) => a + p.q * (M[s].mid - p.avg), 0);
+        h = `<div style="padding:12px 16px" class="num">Realized P&amp;L: <b class="${cl(re)}">${usd(re)}</b> &nbsp; Unrealized P&amp;L: <b class="${cl(un)}">${usd(un)}</b></div><canvas id="pc" style="height:200px"></canvas>`;
+        t.innerHTML = h; const cv = $("#pc"), d = devicePixelRatio || 1, w = cv.clientWidth, ht = 200; cv.width = w * d; cv.height = ht * d; const x = cv.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0);
+        const e = P.eq.map(v => v[1]); if (e.length < 2) { x.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--mute"); x.fillText("Collecting data…", 16, 40); return }
+        const lo = Math.min(...e, START), hi = Math.max(...e, START), pd = (hi - lo) * .1 || 50, a = lo - pd, b = hi + pd, Y = v => 8 + (b - v) / (b - a) * (ht - 16);
+        x.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--line"); x.beginPath(); x.moveTo(0, Y(START)); x.lineTo(w, Y(START)); x.stroke();
+        x.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--acc"); x.lineWidth = 2; x.beginPath(); e.forEach((v, i) => { const X = i / (e.length - 1) * (w - 4) + 2; i ? x.lineTo(X, Y(v)) : x.moveTo(X, Y(v)) }); x.stroke(); return
+      }
+      t.innerHTML = h
+    }
+    document.addEventListener("click", ev => {
+      const r = ev.target.closest("tr[data-s]"); if (r) { sel = r.dataset.s; $("#lp").value = ""; render() }
+      const c = ev.target.closest("[data-c]"); if (c) { api("/api/cancel/" + c.dataset.c, {}).then(refresh).catch(e => say(e.message, 1)) }
+      const tb = ev.target.closest("#tabs button"); if (tb) { tab = tb.dataset.t; document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b === tb)); renderTab() }
+    });
+    document.addEventListener("keydown", ev => { const r = ev.target.closest && ev.target.closest("tr[data-s]"); if (r && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); sel = r.dataset.s; render() } });
+    $("#sb").onclick = () => { side = "b"; $("#sb").classList.add("on"); $("#ss").classList.remove("on"); ticket() };
+    $("#ss").onclick = () => { side = "s"; $("#ss").classList.add("on"); $("#sb").classList.remove("on"); ticket() };
+    $("#ty").onchange = () => { $("#lw").hidden = $("#ty").value !== "limit"; if (!$("#lp").value) { const m = M[sel]; $("#lp").value = (side === "b" ? m.bid : m.ask).toFixed(2) } ticket() };
+    ["qy", "lp"].forEach(i => $("#" + i).oninput = ticket);
+    $("#go").onclick = submit;
+    $("#reset").onclick = async () => { if (confirm("Reset to $100,000 and clear all trades?")) { try { await api("/api/reset", {}); refresh(); say("Account reset.") } catch (e) { say(e.message, 1) } } };
+    refresh(); setInterval(refresh, 1000);
+    addEventListener("resize", render);
+  </script>
+</body>
+
+</html>

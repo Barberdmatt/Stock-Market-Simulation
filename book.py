@@ -39,6 +39,19 @@ class Book:
     def quotes(self):
         return self.best(BID), self.best(ASK)
 
+
+    def preview(self, side, qty):
+        opp = -side
+        lv = self.levels[opp]
+        cost, left = 0, qty
+        for p in sorted(lv, reverse=(opp == BID)):        # best price first
+            take = min(left, sum(lv[p].values()))
+            cost += take * p
+            left -= take
+            if not left:
+                break
+        return None if left else cost / qty
+    
     # ---- internals ---------------------------------------------------
     def _rest(self, oid, side, price, size):
         lv = self.levels[side]
